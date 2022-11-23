@@ -49,21 +49,22 @@
 #include <time.h>               // for NTP time
 #include <ESP32Time.h>          // for RTC time https://github.com/fbiego/ESP32Time
 
+#define VERBOSE            // more output for debugging
+
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
 
 //
 // global variables for ESP32 credentials
-//
+// using #define instead of const saves some program space
 #define WIFI_WAIT 10000    // interval between attempts to connect to wifi
-#define VERBOSE            // more output for debugging
 // Search for parameter in HTTP POST request
-#define PARAM_INPUT_1 "ssid"
-#define PARAM_INPUT_2 "pass"
-#define PARAM_INPUT_3 "ip"
-#define PARAM_INPUT_4 "gateway"
-#define PARAM_INPUT_5 "timezone"
-#define PARAM_INPUT_6 "dst"
+#define PARAM_INPUT_1  "ssid"
+#define PARAM_INPUT_2  "pass"
+#define PARAM_INPUT_3  "ip"
+#define PARAM_INPUT_4  "gateway"
+#define PARAM_INPUT_5  "timezone"
+#define PARAM_INPUT_6  "dst"
 //Variables to save values from HTML form
 String ssid;
 String pass;
@@ -72,12 +73,13 @@ String gateway;
 String tz;
 String dst;
 // File paths to save input values permanently
-const char* ssidPath = "/ssid.txt";
-const char* passPath = "/pass.txt";
-const char* ipPath = "/ip.txt";
-const char* gatewayPath = "/gateway.txt";
-const char* tzPath = "/tz.txt";
-const char* dstPath = "/dst.txt";
+#define ssidPath  "/ssid.txt"
+#define passPath  "/pass.txt"
+#define ipPath  "/ip.txt"
+#define gatewayPath  "/gateway.txt"
+#define tzPath  "/tz.txt"
+#define dstPath  "/dst.txt"
+
 // ESP32 IP address (use DNS if blank)
 IPAddress localIP;
 // local Gateway IP address and subnet mask
@@ -87,7 +89,9 @@ IPAddress subnet(255, 255, 0, 0);
 // global variables for time
 //
 // NTP Server Details
-const char* ntpServer = "pool.ntp.org";
+//const char* ntpServer = "pool.ntp.org";
+#define ntpServer "pool.ntp.org"
+
 long  gmtOffset_sec = 0;//-18000;
 int   daylightOffset_sec = 0;// 3600;
 ESP32Time rtc(0);
@@ -588,7 +592,7 @@ void UpdateLocalTime()
     lastHourNum = hourNum;
     lastDayNum = dayNum;
   }
-  sprintf(localTimeStr, "%d/%d/%d %02d:%02d:%02d", monthNum, dayNum, yearNum, hourNum, minNum, secondNum);
+  sprintf(localTimeStr, "%02d/%02d/%04d %02d:%02d:%02d", monthNum, dayNum, yearNum, hourNum, minNum, secondNum);
   if(!connectDateTimeSet)
   {
     strcpy(connectDateTime, localTimeStr);
