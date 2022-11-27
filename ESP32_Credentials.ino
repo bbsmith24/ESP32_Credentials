@@ -45,11 +45,13 @@
 #include <ESPAsyncWebServer.h>  // https://github.com/me-no-dev/ESPAsyncWebServer
 #include <AsyncTCP.h>           // https://github.com/me-no-dev/AsyncTCP
 #include "FS.h"                 // 
-#include "SPIFFS.h"             // 
+#include "LITTLEFS.h"           // LittleFS_esp32 by loral from Arduino library manager
+//#include "SPIFFS.h"             // 
 #include <time.h>               // for NTP time
 #include <ESP32Time.h>          // for RTC time https://github.com/fbiego/ESP32Time
 
 #define VERBOSE            // more output for debugging
+#define FORMAT_LITTLEFS_IF_FAILED true
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
@@ -130,16 +132,16 @@ void setup()
   Serial.begin(115200);
   #endif
 
-  // initialize SPIFFS for reading credentials
-  SPIFFS_Init();
+  // initialize LITTLEFS for reading credentials
+  LITTLEFS_Init();
   #ifdef VERBOSE
-  // list files in SPIFFS
-  SPIFFS_ListDir(SPIFFS, "/", 10);
+  // list files in LITTLEFS
+  LITTLEFS_ListDir(LITTLEFS, "/", 10);
   #endif
   // uncomment to clear saved credentials 
   //ClearCredentials();
 
-  // Load values saved in SPIFFS if any
+  // Load values saved in LITTLEFS if any
   LoadCredentials();
   //
   // try to initalize wifi with stored credentials
@@ -159,27 +161,27 @@ void loop()
   UpdateLocalTime();
   delay(60000);
 }
-// ================================ begin SPIFFS functions ================================
+// ================================ begin LITTLEFS functions ================================
 //
-// Initialize SPIFFS
+// Initialize LITTLEFS
 //
-void SPIFFS_Init() 
+void LITTLEFS_Init() 
 {
-  if (!SPIFFS.begin(true)) 
+  if (!LITTLEFS.begin(true)) 
   {
     #ifdef VERBOSE
-    Serial.println("An error has occurred while mounting SPIFFS");
+    Serial.println("An error has occurred while mounting LITTLEFS");
     #endif
     return;
   }
   #ifdef VERBOSE
-  Serial.println("SPIFFS mounted successfully");
+  Serial.println("LITTLEFS mounted successfully");
   #endif
 }
 //
-// Read File from SPIFFS
+// Read File from LITTLEFS
 //
-String SPIFFS_ReadFile(fs::FS &fs, const char * path)
+String LITTLEFS_ReadFile(fs::FS &fs, const char * path)
 {
   #ifdef VERBOSE
   Serial.printf("Reading file: %s\r\n", path);
@@ -205,9 +207,9 @@ String SPIFFS_ReadFile(fs::FS &fs, const char * path)
   return fileContent;
 }
 //
-// Write file to SPIFFS
+// Write file to LITTLEFS
 //
-void SPIFFS_WriteFile(fs::FS &fs, const char * path, const char * message)
+void LITTLEFS_WriteFile(fs::FS &fs, const char * path, const char * message)
 {
   #ifdef VERBOSE
   Serial.printf("Writing file: %s\r\n", path);
@@ -234,9 +236,9 @@ void SPIFFS_WriteFile(fs::FS &fs, const char * path, const char * message)
   }
 }
 //
-// list SPIFFS files
+// list LITTLEFS files
 //
-void SPIFFS_ListDir(fs::FS &fs, const char * dirname, uint8_t levels)
+void LITTLEFS_ListDir(fs::FS &fs, const char * dirname, uint8_t levels)
 {
     Serial.printf("Listing directory: %s\r\n", dirname);
 
@@ -261,7 +263,7 @@ void SPIFFS_ListDir(fs::FS &fs, const char * dirname, uint8_t levels)
             Serial.println(file.name());
             if(levels)
             {
-                SPIFFS_ListDir(fs, file.name(), levels -1);
+                LITTLEFS_ListDir(fs, file.name(), levels -1);
             }
         }
          else 
@@ -275,9 +277,9 @@ void SPIFFS_ListDir(fs::FS &fs, const char * dirname, uint8_t levels)
     }
 }
 //
-// delete named file from SPIFFS
+// delete named file from LITTLEFS
 //
-void SPIFFS_DeleteFile(fs::FS &fs, const char * path)
+void LITTLEFS_DeleteFile(fs::FS &fs, const char * path)
 {
   #ifdef VERBOSE
   Serial.printf("Deleting file: %s\r\n", path);
@@ -295,7 +297,7 @@ void SPIFFS_DeleteFile(fs::FS &fs, const char * path)
     #endif
   }
 }
-// ================================ end SPIFFS functions ================================
+// ================================ end LITTLEFS functions ================================
 // ================================ begin WiFi initialize/credentials functions ================================
 //
 // Initialize WiFi
@@ -361,21 +363,21 @@ bool WiFi_Init()
   return true;
 }
 //
-// load wifi credentials from SPIFFS
+// load wifi credentials from LITTLEFS
 //
 void LoadCredentials()
 {
-  ssid = SPIFFS_ReadFile(SPIFFS, ssidPath);
-  pass = SPIFFS_ReadFile(SPIFFS, passPath);
-  ip = SPIFFS_ReadFile(SPIFFS, ipPath);
-  gateway = SPIFFS_ReadFile (SPIFFS, gatewayPath);
-  tz = SPIFFS_ReadFile (SPIFFS, tzPath);
-  dst = SPIFFS_ReadFile (SPIFFS, dstPath);
+  ssid = LITTLEFS_ReadFile(LITTLEFS, ssidPath);
+  pass = LITTLEFS_ReadFile(LITTLEFS, passPath);
+  ip = LITTLEFS_ReadFile(LITTLEFS, ipPath);
+  gateway = LITTLEFS_ReadFile (LITTLEFS, gatewayPath);
+  tz = LITTLEFS_ReadFile (LITTLEFS, tzPath);
+  dst = LITTLEFS_ReadFile (LITTLEFS, dstPath);
   
   gmtOffset_sec = atoi(tz.c_str()) * 3600; // convert hours to seconds
   daylightOffset_sec = atoi(dst.c_str()) * 3600; // convert hours to seconds
   
-  SPIFFS_ReadFile(SPIFFS, "/wifimanager.html");
+  LITTLEFS_ReadFile(LITTLEFS, "/wifimanager.html");
   #ifdef VERBOSE
   Serial.print("SSID: ");
   Serial.println(ssid);
@@ -418,10 +420,10 @@ void GetCredentials()
     #ifdef VERBOSE
     Serial.println("Request from webserver, send page");
     #endif  
-    request->send(SPIFFS, "/wifimanager.html", "text/html");
+    request->send(LITTLEFS, "/wifimanager.html", "text/html");
   });
     
-  server.serveStatic("/", SPIFFS, "/");
+  server.serveStatic("/", LITTLEFS, "/");
   //
   // display web page and get credentials from user
   //  
@@ -445,7 +447,7 @@ void GetCredentials()
           Serial.println(ssid);
           #endif
           // Write file to save value
-          SPIFFS_WriteFile(SPIFFS, ssidPath, ssid.c_str());
+          LITTLEFS_WriteFile(LITTLEFS, ssidPath, ssid.c_str());
         }
         // HTTP POST password value
         if (p->name() == PARAM_INPUT_2) 
@@ -456,7 +458,7 @@ void GetCredentials()
           Serial.println(pass);
           #endif
           // Write file to save value
-          SPIFFS_WriteFile(SPIFFS, passPath, pass.c_str());
+          LITTLEFS_WriteFile(LITTLEFS, passPath, pass.c_str());
         }
         // HTTP POST local ip value
         if (p->name() == PARAM_INPUT_3) 
@@ -467,7 +469,7 @@ void GetCredentials()
           Serial.println(ip);
           #endif
           // Write file to save value
-          SPIFFS_WriteFile(SPIFFS, ipPath, ip.c_str());
+          LITTLEFS_WriteFile(LITTLEFS, ipPath, ip.c_str());
         }
         // HTTP POST gateway ip value
         if (p->name() == PARAM_INPUT_4) 
@@ -478,7 +480,7 @@ void GetCredentials()
           Serial.println(gateway);
           #endif
           // Write file to save value
-          SPIFFS_WriteFile(SPIFFS, gatewayPath, gateway.c_str());
+          LITTLEFS_WriteFile(LITTLEFS, gatewayPath, gateway.c_str());
         }
         // HTTP POST gateway ip value
         if (p->name() == PARAM_INPUT_5) 
@@ -489,7 +491,7 @@ void GetCredentials()
           Serial.println(tz);
           #endif
           // Write file to save value
-          SPIFFS_WriteFile(SPIFFS, tzPath, tz.c_str());
+          LITTLEFS_WriteFile(LITTLEFS, tzPath, tz.c_str());
         }
         // HTTP POST gateway ip value
         if (p->name() == PARAM_INPUT_6) 
@@ -500,7 +502,7 @@ void GetCredentials()
           Serial.println(dst);
           #endif
           // Write file to save value
-          SPIFFS_WriteFile(SPIFFS, dstPath, dst.c_str());
+          LITTLEFS_WriteFile(LITTLEFS, dstPath, dst.c_str());
         }
         //Serial.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
       }
@@ -520,12 +522,12 @@ void ClearCredentials()
   #ifdef VERBOSE
   Serial.println("Clear WiFi credentials");
   #endif
-  SPIFFS_DeleteFile(SPIFFS, ssidPath);
-  SPIFFS_DeleteFile(SPIFFS, passPath);
-  SPIFFS_DeleteFile(SPIFFS, ipPath);
-  SPIFFS_DeleteFile(SPIFFS, gatewayPath);
-  SPIFFS_DeleteFile(SPIFFS, tzPath);
-  SPIFFS_DeleteFile(SPIFFS, dstPath);
+  LITTLEFS_DeleteFile(LITTLEFS, ssidPath);
+  LITTLEFS_DeleteFile(LITTLEFS, passPath);
+  LITTLEFS_DeleteFile(LITTLEFS, ipPath);
+  LITTLEFS_DeleteFile(LITTLEFS, gatewayPath);
+  LITTLEFS_DeleteFile(LITTLEFS, tzPath);
+  LITTLEFS_DeleteFile(LITTLEFS, dstPath);
   #ifdef VERBOSE
   Serial.println("Restart...");
   #endif
