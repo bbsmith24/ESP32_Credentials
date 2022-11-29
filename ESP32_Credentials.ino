@@ -52,6 +52,11 @@
 
 #define VERBOSE            // more output for debugging
 #define FORMAT_LITTLEFS_IF_FAILED true
+//#define ALT_SERIAL
+#define SERIALX Serial
+//#define SERIALX Serial2
+#define RXD2 16
+#define TXD2 17
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
@@ -129,7 +134,7 @@ unsigned long previousMillis = 0;
 void setup()
 {
   #ifdef VERBOSE
-  Serial.begin(115200);
+  SERIALX.begin(115200);
   #endif
 
   // initialize LITTLEFS for reading credentials
@@ -170,12 +175,12 @@ void LITTLEFS_Init()
   if (!LITTLEFS.begin(true)) 
   {
     #ifdef VERBOSE
-    Serial.println("An error has occurred while mounting LITTLEFS");
+    SERIALX.println("An error has occurred while mounting LITTLEFS");
     #endif
     return;
   }
   #ifdef VERBOSE
-  Serial.println("LITTLEFS mounted successfully");
+  SERIALX.println("LITTLEFS mounted successfully");
   #endif
 }
 //
@@ -184,13 +189,13 @@ void LITTLEFS_Init()
 String LITTLEFS_ReadFile(fs::FS &fs, const char * path)
 {
   #ifdef VERBOSE
-  Serial.printf("Reading file: %s\r\n", path);
+  SERIALX.printf("Reading file: %s\r\n", path);
   #endif
   File file = fs.open(path);
   if(!file || file.isDirectory())
   {
     #ifdef VERBOSE
-    Serial.println("- failed to open file for reading");
+    SERIALX.println("- failed to open file for reading");
     #endif
     return String();
   }
@@ -200,7 +205,7 @@ String LITTLEFS_ReadFile(fs::FS &fs, const char * path)
   {
     fileContent = file.readStringUntil('\n');
     #ifdef VERBOSE
-    Serial.println(fileContent);
+    SERIALX.println(fileContent);
     #endif
     //break;     
   }
@@ -212,26 +217,26 @@ String LITTLEFS_ReadFile(fs::FS &fs, const char * path)
 void LITTLEFS_WriteFile(fs::FS &fs, const char * path, const char * message)
 {
   #ifdef VERBOSE
-  Serial.printf("Writing file: %s\r\n", path);
+  SERIALX.printf("Writing file: %s\r\n", path);
   #endif
   File file = fs.open(path, FILE_WRITE);
   if(!file)
   {
     #ifdef VERBOSE
-    Serial.println("- failed to open file for writing");
+    SERIALX.println("- failed to open file for writing");
     #endif
     return;
   }
   if(file.print(message))
   {
     #ifdef VERBOSE
-    Serial.println("- file written");
+    SERIALX.println("- file written");
     #endif
   }
    else 
    {
     #ifdef VERBOSE
-    Serial.println("- file write failed");
+    SERIALX.println("- file write failed");
     #endif
   }
 }
@@ -240,17 +245,17 @@ void LITTLEFS_WriteFile(fs::FS &fs, const char * path, const char * message)
 //
 void LITTLEFS_ListDir(fs::FS &fs, const char * dirname, uint8_t levels)
 {
-    Serial.printf("Listing directory: %s\r\n", dirname);
+    SERIALX.printf("Listing directory: %s\r\n", dirname);
 
     File root = fs.open(dirname);
     if(!root)
     {
-        Serial.println("- failed to open directory");
+        SERIALX.println("- failed to open directory");
         return;
     }
     if(!root.isDirectory())
     {
-        Serial.println(" - not a directory");
+        SERIALX.println(" - not a directory");
         return;
     }
 
@@ -259,8 +264,8 @@ void LITTLEFS_ListDir(fs::FS &fs, const char * dirname, uint8_t levels)
     {
         if(file.isDirectory())
         {
-            Serial.print("  DIR : ");
-            Serial.println(file.name());
+            SERIALX.print("  DIR : ");
+            SERIALX.println(file.name());
             if(levels)
             {
                 LITTLEFS_ListDir(fs, file.name(), levels -1);
@@ -268,10 +273,10 @@ void LITTLEFS_ListDir(fs::FS &fs, const char * dirname, uint8_t levels)
         }
          else 
          {
-            Serial.print("  FILE: ");
-            Serial.print(file.name());
-            Serial.print("\tSIZE: ");
-            Serial.println(file.size());
+            SERIALX.print("  FILE: ");
+            SERIALX.print(file.name());
+            SERIALX.print("\tSIZE: ");
+            SERIALX.println(file.size());
         }
         file = root.openNextFile();
     }
@@ -282,18 +287,18 @@ void LITTLEFS_ListDir(fs::FS &fs, const char * dirname, uint8_t levels)
 void LITTLEFS_DeleteFile(fs::FS &fs, const char * path)
 {
   #ifdef VERBOSE
-  Serial.printf("Deleting file: %s\r\n", path);
+  SERIALX.printf("Deleting file: %s\r\n", path);
   #endif
   if(fs.remove(path))
   {
     #ifdef VERBOSE
-    Serial.println("- file deleted");
+    SERIALX.println("- file deleted");
     #endif
   }
   else 
   {
     #ifdef VERBOSE
-    Serial.println("- delete failed");
+    SERIALX.println("- delete failed");
     #endif
   }
 }
@@ -308,7 +313,7 @@ bool WiFi_Init()
   if(ssid=="")
   {
     #ifdef VERBOSE
-    Serial.println("Undefined SSID");
+    SERIALX.println("Undefined SSID");
     #endif    
     return false;
   }
@@ -321,12 +326,12 @@ bool WiFi_Init()
   if((ip != "") && (gateway != ""))
   {
     #ifdef VERBOSE
-    Serial.printf("Configure wifi localIP %s gateway %s\n", localIP, localGateway);
+    SERIALX.printf("Configure wifi localIP %s gateway %s\n", localIP, localGateway);
     #endif
     if (!WiFi.config(localIP, localGateway, subnet))
     {
       #ifdef VERBOSE
-      Serial.println("STA Failed to configure");
+      SERIALX.println("STA Failed to configure");
       #endif
       return false;
     }
@@ -334,13 +339,13 @@ bool WiFi_Init()
   else
   {
     #ifdef VERBOSE  
-    Serial.println("Connect to wifi with DNS assigned IP");
+    SERIALX.println("Connect to wifi with DNS assigned IP");
     #endif
   }
   // set up and connect to wifi
   WiFi.begin(ssid.c_str(), pass.c_str());
   #ifdef VERBOSE
-  Serial.println("Connecting to WiFi...");
+  SERIALX.println("Connecting to WiFi...");
   #endif
   unsigned long currentMillis = millis();
   previousMillis = currentMillis;
@@ -351,14 +356,14 @@ bool WiFi_Init()
     if (currentMillis - previousMillis >= WIFI_WAIT) 
     {
       #ifdef VERBOSE
-      Serial.println("Failed to connect.");
+      SERIALX.println("Failed to connect.");
       #endif
       return false;
     }
   }
   #ifdef VERBOSE
-  Serial.print("Connected to wifi ");
-  Serial.println(WiFi.localIP());
+  SERIALX.print("Connected to wifi ");
+  SERIALX.println(WiFi.localIP());
   #endif
   return true;
 }
@@ -368,33 +373,39 @@ bool WiFi_Init()
 void LoadCredentials()
 {
   ssid = LITTLEFS_ReadFile(LITTLEFS, ssidPath);
+  ssid.trim();
   pass = LITTLEFS_ReadFile(LITTLEFS, passPath);
+  pass.trim();
   ip = LITTLEFS_ReadFile(LITTLEFS, ipPath);
+  ip.trim();
   gateway = LITTLEFS_ReadFile (LITTLEFS, gatewayPath);
+  gateway.trim();
   tz = LITTLEFS_ReadFile (LITTLEFS, tzPath);
+  tz.trim();
   dst = LITTLEFS_ReadFile (LITTLEFS, dstPath);
-  
+  dst.trim();
+
   gmtOffset_sec = atoi(tz.c_str()) * 3600; // convert hours to seconds
   daylightOffset_sec = atoi(dst.c_str()) * 3600; // convert hours to seconds
   
   LITTLEFS_ReadFile(LITTLEFS, "/wifimanager.html");
   #ifdef VERBOSE
-  Serial.print("SSID: ");
-  Serial.println(ssid);
-  Serial.print("PASSWORD: ");
-  Serial.println(pass);
-  Serial.print("Fixed IP (optional): ");
-  Serial.println(ip);
-  Serial.print("Fixed gateway (optional): ");
-  Serial.println(gateway);
-  Serial.print("Timezone offset: ");
-  Serial.print(tz);
-  Serial.print(" ");
-  Serial.println(gmtOffset_sec);
-  Serial.print("DST offset: ");
-  Serial.print(dst);
-  Serial.print(" ");
-  Serial.println(daylightOffset_sec);
+  SERIALX.print("SSID: ");
+  SERIALX.println(ssid);
+  SERIALX.print("PASSWORD: ");
+  SERIALX.println(pass);
+  SERIALX.print("Fixed IP (optional): ");
+  SERIALX.println(ip);
+  SERIALX.print("Fixed gateway (optional): ");
+  SERIALX.println(gateway);
+  SERIALX.print("Timezone offset: ");
+  SERIALX.print(tz);
+  SERIALX.print(" ");
+  SERIALX.println(gmtOffset_sec);
+  SERIALX.print("DST offset: ");
+  SERIALX.print(dst);
+  SERIALX.print(" ");
+  SERIALX.println(daylightOffset_sec);
   #endif
 }
 //
@@ -404,21 +415,21 @@ void GetCredentials()
 {
   // Connect to Wi-Fi network with SSID and password
   #ifdef VERBOSE
-  Serial.print("Setting AP (Access Point) ");
+  SERIALX.print("Setting AP (Access Point) ");
   #endif
   // NULL sets an open Access Point
   WiFi.softAP("ESP-WIFI-MANAGER", NULL);
 
   IPAddress IP = WiFi.softAPIP();
   #ifdef VERBOSE
-  Serial.print(" address: ");
-  Serial.println(IP); 
+  SERIALX.print(" address: ");
+  SERIALX.println(IP); 
   #endif
   // Web Server Root URL
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
   {
     #ifdef VERBOSE
-    Serial.println("Request from webserver, send page");
+    SERIALX.println("Request from webserver, send page");
     #endif  
     request->send(LITTLEFS, "/wifimanager.html", "text/html");
   });
@@ -430,7 +441,7 @@ void GetCredentials()
   server.on("/", HTTP_POST, [](AsyncWebServerRequest *request) 
   {
     #ifdef VERBOSE
-    Serial.println("Display web page and get credentials from user");
+    SERIALX.println("Display web page and get credentials from user");
     #endif  
     int params = request->params();
     for(int i=0;i<params;i++)
@@ -443,8 +454,8 @@ void GetCredentials()
         {
           ssid = p->value().c_str();
           #ifdef VERBOSE
-          Serial.print("SSID set to: ");
-          Serial.println(ssid);
+          SERIALX.print("SSID set to: ");
+          SERIALX.println(ssid);
           #endif
           // Write file to save value
           LITTLEFS_WriteFile(LITTLEFS, ssidPath, ssid.c_str());
@@ -454,8 +465,8 @@ void GetCredentials()
         {
           pass = p->value().c_str();
           #ifdef VERBOSE
-          Serial.print("Password set to: ");
-          Serial.println(pass);
+          SERIALX.print("Password set to: ");
+          SERIALX.println(pass);
           #endif
           // Write file to save value
           LITTLEFS_WriteFile(LITTLEFS, passPath, pass.c_str());
@@ -465,8 +476,8 @@ void GetCredentials()
         {
           ip = p->value().c_str();
           #ifdef VERBOSE
-          Serial.print("IP Address set to: ");
-          Serial.println(ip);
+          SERIALX.print("IP Address set to: ");
+          SERIALX.println(ip);
           #endif
           // Write file to save value
           LITTLEFS_WriteFile(LITTLEFS, ipPath, ip.c_str());
@@ -476,8 +487,8 @@ void GetCredentials()
         {
           gateway = p->value().c_str();
           #ifdef VERBOSE
-          Serial.print("Gateway set to: ");
-          Serial.println(gateway);
+          SERIALX.print("Gateway set to: ");
+          SERIALX.println(gateway);
           #endif
           // Write file to save value
           LITTLEFS_WriteFile(LITTLEFS, gatewayPath, gateway.c_str());
@@ -487,8 +498,8 @@ void GetCredentials()
         {
           tz = p->value().c_str();
           #ifdef VERBOSE
-          Serial.print("Time zone offset set to: ");
-          Serial.println(tz);
+          SERIALX.print("Time zone offset set to: ");
+          SERIALX.println(tz);
           #endif
           // Write file to save value
           LITTLEFS_WriteFile(LITTLEFS, tzPath, tz.c_str());
@@ -498,13 +509,13 @@ void GetCredentials()
         {
           dst = p->value().c_str();
           #ifdef VERBOSE
-          Serial.print("DST offset set to: ");
-          Serial.println(dst);
+          SERIALX.print("DST offset set to: ");
+          SERIALX.println(dst);
           #endif
           // Write file to save value
           LITTLEFS_WriteFile(LITTLEFS, dstPath, dst.c_str());
         }
-        //Serial.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
+        //SERIALX.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
       }
     } 
     request->send(200, "text/plain", "Done. ESP will restart, connect to your router and go to IP address: " + ip);
@@ -520,7 +531,7 @@ void GetCredentials()
 void ClearCredentials()
 {
   #ifdef VERBOSE
-  Serial.println("Clear WiFi credentials");
+  SERIALX.println("Clear WiFi credentials");
   #endif
   LITTLEFS_DeleteFile(LITTLEFS, ssidPath);
   LITTLEFS_DeleteFile(LITTLEFS, passPath);
@@ -529,7 +540,7 @@ void ClearCredentials()
   LITTLEFS_DeleteFile(LITTLEFS, tzPath);
   LITTLEFS_DeleteFile(LITTLEFS, dstPath);
   #ifdef VERBOSE
-  Serial.println("Restart...");
+  SERIALX.println("Restart...");
   #endif
   delay(WIFI_WAIT);
   ESP.restart();
@@ -545,7 +556,7 @@ void UpdateLocalTime()
   if(!rtcTimeSet)
   {
     #ifdef VERBOSE
-    Serial.print("Time from NTP server ");
+    SERIALX.print("Time from NTP server ");
     #endif
     struct tm timeinfo;
     if(!getLocalTime(&timeinfo))
@@ -578,7 +589,7 @@ void UpdateLocalTime()
   else
   {
     #ifdef VERBOSE
-    Serial.print("Time from local RTC ");
+    SERIALX.print("Time from local RTC ");
     #endif
     dayNum = rtc.getDay();
     monthNum = rtc.getMonth() + 1;
@@ -601,7 +612,7 @@ void UpdateLocalTime()
     connectDateTimeSet = true;
   }
   #ifdef VERBOSE
-  Serial.println(localTimeStr);
+  SERIALX.println(localTimeStr);
   #endif
 }
 // ================================ end NTP/RTC time functions ================================
