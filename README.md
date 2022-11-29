@@ -22,17 +22,17 @@ Files:
 	creates files in SPIFFS with data from wifimanager.html
  
 ESP32_Credentials Functions:
-	setup() - initialize SPIFFS file system for load/store credentials and time info, initialize WiFi. Add any other initialization for
+	setup() - initialize LITTLEFS file system for load/store credentials and time info, initialize WiFi. Add any other initialization for
 			new projects here
 
 	loop() - print current time to Serial every minute. Add whatever is needed for new projects here
 
-	SPIFFS functions
-		SPIFFS_Init - initialize the SPIFFS file system
-		SPIFFS_ReadFile - read a file, return contents as a String
-		SPIFFS_WriteFile - create a file using pathname and message
-		SPIFFS_ListDir - list files in SPIFFS (for debugging)
-		SPIFFS_DeleteFile - delete a named file
+	LITTLEFS functions
+		LITTLEFS_Init - initialize the LITTLEFS file system
+		LITTLEFS_ReadFile - read a file, return contents as a String
+		LITTLEFS_WriteFile - create a file using pathname and message
+		LITTLEFS_ListDir - list files in LITTLEFS (for debugging)
+		LITTLEFS_DeleteFile - delete a named file
 
 	WiFi_Init
 		LoadCredentials - read credentials and timezone information from files in SPIFFS
