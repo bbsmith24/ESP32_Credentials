@@ -1,11 +1,14 @@
 /*
-  ESP32_Credentials
-  Brian B Smith
+  Brian Smith
   November 2022
+  Copyright (c) 2022 Brian B Smith. All rights reserved.
   brianbsmith.com
   info@brianbsmith.com
   
-  Copyright (c) 2022 Brian B Smith. All rights reserved.
+  ESP32_Credentials
+    
+  get wifi credentials from built in web page, store to LITTLEFS file system, use until reset
+  basis for IOT and other projects requiring WiFi connection and NTP/RTC time
 
   This is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -39,6 +42,14 @@
     added local time offset from GMT and daylight savings time offset to credentials page - hours now, could be enhanced with a combo box for timezone
 
 */
+#define VERBOSE            // more output for debugging
+#define FORMAT_LITTLEFS_IF_FAILED true
+// for using alternate serial ports
+//#define ALT_SERIAL
+#define SERIALX Serial
+//#define SERIALX Serial2
+#define RXD2 16
+#define TXD2 17
 
 #include <Arduino.h>            // 
 #include <WiFi.h>               // 
@@ -50,13 +61,6 @@
 #include <time.h>               // for NTP time
 #include <ESP32Time.h>          // for RTC time https://github.com/fbiego/ESP32Time
 
-#define VERBOSE            // more output for debugging
-#define FORMAT_LITTLEFS_IF_FAILED true
-//#define ALT_SERIAL
-#define SERIALX Serial
-//#define SERIALX Serial2
-#define RXD2 16
-#define TXD2 17
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
@@ -83,7 +87,7 @@ String dst;
 #define ssidPath  "/ssid.txt"
 #define passPath  "/pass.txt"
 #define ipPath  "/ip.txt"
-#define gatewayPath  "/gateway.txt"
+#define gatewayPath  "/gate.txt"
 #define tzPath  "/tz.txt"
 #define dstPath  "/dst.txt"
 
@@ -96,11 +100,10 @@ IPAddress subnet(255, 255, 0, 0);
 // global variables for time
 //
 // NTP Server Details
-//const char* ntpServer = "pool.ntp.org";
 #define ntpServer "pool.ntp.org"
 
-long  gmtOffset_sec = 0;//-18000;
-int   daylightOffset_sec = 0;// 3600;
+long  gmtOffset_sec = 0;
+int   daylightOffset_sec = 0;
 ESP32Time rtc(0);
 
 int dayNum;
@@ -128,17 +131,59 @@ bool rtcTimeSet = false;
 // Timer variables
 unsigned long previousMillis = 0;
 
+char wifiState[256];
+bool wifiConnected = false;
 //
 // connect to wifi. if credentials not present/invalid, boot to access point and present page to get them
 //
 void setup()
 {
-  #ifdef VERBOSE
+#ifdef VERBOSE
+  // Serial port for debugging purposes
+  #ifndef ALT_SERIAL
   SERIALX.begin(115200);
+  #else
+  SERIALX.begin(115200, SERIAL_8N1, RXD2, TXD2);
   #endif
+  #endif
+
+  #ifdef VERBOSE
+  SERIALX.println("");
+  SERIALX.println("BBS Nov 2022");
+  SERIALX.println("IOT WiFi Credentials");
+  SERIALX.println("====================");
+  delay(1000);
+  #endif
+    // set CPU freq to 80MHz, disable bluetooth  to save power
+  #ifdef VERBOSE
+  int freq = getCpuFrequencyMhz();
+  SERIALX.printf("Default Freq\n");
+  SERIALX.printf("CPU Freq = %dMhz\n", freq);
+  freq = getXtalFrequencyMhz();
+  SERIALX.printf("XTAL Freq = %dMhz\n", freq);
+  freq = getApbFrequency();
+  SERIALX.printf("APB Freq = %dHz\n", freq);
+  #endif
+  setCpuFrequencyMhz(80);
+  #ifdef VERBOSE
+  SERIALX.printf("Updated Freq\n");
+  freq = getCpuFrequencyMhz();
+  SERIALX.printf("CPU Freq = %dMhz\n", freq);
+  freq = getXtalFrequencyMhz();
+  SERIALX.printf("XTAL Freq = %dMhz\n", freq);
+  freq = getApbFrequency();
+  SERIALX.printf("APB Freq = %dHz\n", freq);
+  #endif
+  btStop();
+  #ifdef VERBOSE
+  SERIALX.printf("Bluetooth disabled\n");
+  #endif  
+
+  sprintf(wifiState, "Not connected");
 
   // initialize LITTLEFS for reading credentials
   LITTLEFS_Init();
+  
   #ifdef VERBOSE
   // list files in LITTLEFS
   LITTLEFS_ListDir(LITTLEFS, "/", 10);
@@ -154,6 +199,9 @@ void setup()
   //
   if(!WiFi_Init()) 
   {
+    #ifdef VERBOSE
+    SERIALX.println("No credentials stored - get from locally hosted page");
+    #endif
     GetCredentials();
   }
 }
@@ -189,7 +237,7 @@ void LITTLEFS_Init()
 String LITTLEFS_ReadFile(fs::FS &fs, const char * path)
 {
   #ifdef VERBOSE
-  SERIALX.printf("Reading file: %s\r\n", path);
+  SERIALX.printf("Reading file: %s - ", path);
   #endif
   File file = fs.open(path);
   if(!file || file.isDirectory())
@@ -204,11 +252,10 @@ String LITTLEFS_ReadFile(fs::FS &fs, const char * path)
   while(file.available())
   {
     fileContent = file.readStringUntil('\n');
-    #ifdef VERBOSE
-    SERIALX.println(fileContent);
-    #endif
-    //break;     
   }
+  #ifdef VERBOSE
+  SERIALX.println(" - read file");
+  #endif
   return fileContent;
 }
 //
@@ -217,7 +264,7 @@ String LITTLEFS_ReadFile(fs::FS &fs, const char * path)
 void LITTLEFS_WriteFile(fs::FS &fs, const char * path, const char * message)
 {
   #ifdef VERBOSE
-  SERIALX.printf("Writing file: %s\r\n", path);
+  SERIALX.printf("Writing >>%s<< to file: %s ", message, path);
   #endif
   File file = fs.open(path, FILE_WRITE);
   if(!file)
@@ -287,7 +334,7 @@ void LITTLEFS_ListDir(fs::FS &fs, const char * dirname, uint8_t levels)
 void LITTLEFS_DeleteFile(fs::FS &fs, const char * path)
 {
   #ifdef VERBOSE
-  SERIALX.printf("Deleting file: %s\r\n", path);
+  SERIALX.printf("Deleting file: %s ", path);
   #endif
   if(fs.remove(path))
   {
@@ -315,6 +362,7 @@ bool WiFi_Init()
     #ifdef VERBOSE
     SERIALX.println("Undefined SSID");
     #endif    
+    wifiConnected = false;
     return false;
   }
 
@@ -323,16 +371,17 @@ bool WiFi_Init()
   // for (optional) user defined gateway and local IP  
   localIP.fromString(ip.c_str());
   localGateway.fromString(gateway.c_str());
-  if((ip != "") && (gateway != ""))
+  if((ip != "") || (gateway != ""))
   {
     #ifdef VERBOSE
-    SERIALX.printf("Configure wifi localIP %s gateway %s\n", localIP, localGateway);
+    SERIALX.printf("Configure wifi localIP %s gateway %s\n", ip, gateway);
     #endif
     if (!WiFi.config(localIP, localGateway, subnet))
     {
       #ifdef VERBOSE
       SERIALX.println("STA Failed to configure");
       #endif
+      wifiConnected = false;
       return false;
     }
   }
@@ -345,27 +394,41 @@ bool WiFi_Init()
   // set up and connect to wifi
   WiFi.begin(ssid.c_str(), pass.c_str());
   #ifdef VERBOSE
-  SERIALX.println("Connecting to WiFi...");
+  SERIALX.printf("Connecting to WiFi SSID: %s PWD: %s...", ssid.c_str(), pass.c_str());
   #endif
   unsigned long currentMillis = millis();
   previousMillis = currentMillis;
 
-  while(WiFi.status() != WL_CONNECTED) 
+  int retryCount = 0;
+  previousMillis = millis();
+  wifiConnected = true;
+  while((WiFi.status() != WL_CONNECTED) && (retryCount < 10))
   {
     currentMillis = millis();
     if (currentMillis - previousMillis >= WIFI_WAIT) 
     {
       #ifdef VERBOSE
-      SERIALX.println("Failed to connect.");
+      SERIALX.printf("Failed to connect on try %d of 10.", retryCount+1);
       #endif
-      return false;
+      wifiConnected = false;
+      retryCount++;
+      previousMillis = currentMillis;
     }
   }
+  wifiConnected = (WiFi.status() == WL_CONNECTED);
+  if(!wifiConnected)
+  {
+      #ifdef VERBOSE    
+      SERIALX.printf("Failed to connect after 10 attempts - reset credentials");
+      #endif
+      ClearCredentials();
+  }
+  sprintf(wifiState, "Connected %s ",WiFi.localIP().toString().c_str());
+
   #ifdef VERBOSE
-  SERIALX.print("Connected to wifi ");
-  SERIALX.println(WiFi.localIP());
+  SERIALX.println(wifiState);
   #endif
-  return true;
+  return wifiConnected;
 }
 //
 // load wifi credentials from LITTLEFS
@@ -413,6 +476,8 @@ void LoadCredentials()
 //
 void GetCredentials()
 {
+  disableCore0WDT();
+  disableCore1WDT();
   // Connect to Wi-Fi network with SSID and password
   #ifdef VERBOSE
   SERIALX.print("Setting AP (Access Point) ");
@@ -440,12 +505,10 @@ void GetCredentials()
   //  
   server.on("/", HTTP_POST, [](AsyncWebServerRequest *request) 
   {
-    #ifdef VERBOSE
-    SERIALX.println("Display web page and get credentials from user");
-    #endif  
     int params = request->params();
     for(int i=0;i<params;i++)
     {
+      yield();
       AsyncWebParameter* p = request->getParam(i);
       if(p->isPost())
       {
@@ -454,75 +517,85 @@ void GetCredentials()
         {
           ssid = p->value().c_str();
           #ifdef VERBOSE
-          SERIALX.print("SSID set to: ");
-          SERIALX.println(ssid);
+          SERIALX.printf("%s %s\n", PARAM_INPUT_1, ssid);
           #endif
-          // Write file to save value
-          LITTLEFS_WriteFile(LITTLEFS, ssidPath, ssid.c_str());
         }
         // HTTP POST password value
         if (p->name() == PARAM_INPUT_2) 
         {
           pass = p->value().c_str();
           #ifdef VERBOSE
-          SERIALX.print("Password set to: ");
-          SERIALX.println(pass);
+          SERIALX.printf("%s %s\n", PARAM_INPUT_2, pass);
           #endif
-          // Write file to save value
-          LITTLEFS_WriteFile(LITTLEFS, passPath, pass.c_str());
         }
         // HTTP POST local ip value
         if (p->name() == PARAM_INPUT_3) 
         {
           ip = p->value().c_str();
           #ifdef VERBOSE
-          SERIALX.print("IP Address set to: ");
-          SERIALX.println(ip);
+          SERIALX.printf("%s %s\n", PARAM_INPUT_3, ip);
           #endif
-          // Write file to save value
-          LITTLEFS_WriteFile(LITTLEFS, ipPath, ip.c_str());
         }
         // HTTP POST gateway ip value
         if (p->name() == PARAM_INPUT_4) 
         {
           gateway = p->value().c_str();
           #ifdef VERBOSE
-          SERIALX.print("Gateway set to: ");
-          SERIALX.println(gateway);
+          SERIALX.printf("%s %s\n", PARAM_INPUT_4, gateway);
           #endif
-          // Write file to save value
-          LITTLEFS_WriteFile(LITTLEFS, gatewayPath, gateway.c_str());
         }
-        // HTTP POST gateway ip value
+        // HTTP POST time zone offset value
         if (p->name() == PARAM_INPUT_5) 
         {
           tz = p->value().c_str();
           #ifdef VERBOSE
-          SERIALX.print("Time zone offset set to: ");
-          SERIALX.println(tz);
+          SERIALX.printf("%s %s\n", PARAM_INPUT_5, tz);
           #endif
-          // Write file to save value
-          LITTLEFS_WriteFile(LITTLEFS, tzPath, tz.c_str());
         }
-        // HTTP POST gateway ip value
+        // HTTP POST dst offset value
         if (p->name() == PARAM_INPUT_6) 
         {
           dst = p->value().c_str();
           #ifdef VERBOSE
-          SERIALX.print("DST offset set to: ");
-          SERIALX.println(dst);
+          SERIALX.printf("%s %s\n", PARAM_INPUT_6, dst);
           #endif
-          // Write file to save value
-          LITTLEFS_WriteFile(LITTLEFS, dstPath, dst.c_str());
         }
-        //SERIALX.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
       }
     } 
     request->send(200, "text/plain", "Done. ESP will restart, connect to your router and go to IP address: " + ip);
-    delay(WIFI_WAIT);
-    ESP.restart();
+    #ifdef VERBOSE
+    SERIALX.println("Store credentials in LITTLEFS and reboot");
+    #endif
+    SaveCredentials();
   });
   server.begin();
+}
+//
+// save credentials to files
+//
+void SaveCredentials()
+{
+  LITTLEFS_WriteFile(LITTLEFS, ssidPath, ssid.c_str());
+  LITTLEFS_WriteFile(LITTLEFS, passPath, pass.c_str());
+  LITTLEFS_WriteFile(LITTLEFS, ipPath, ip.c_str());
+  LITTLEFS_WriteFile(LITTLEFS, gatewayPath, gateway.c_str());
+  LITTLEFS_WriteFile(LITTLEFS, tzPath, tz.c_str());
+  LITTLEFS_WriteFile(LITTLEFS, dstPath, dst.c_str());
+  #ifdef VERBOSE
+  SERIALX.print("SSID set to: ");
+  SERIALX.println(ssid);
+  SERIALX.print("Password set to: ");
+  SERIALX.println(pass);
+  SERIALX.print("IP Address set to: ");
+  SERIALX.println(ip);
+  SERIALX.print("Time zone offset set to: ");
+  SERIALX.println(tz);
+  SERIALX.print("DST offset set to: ");
+  SERIALX.println(dst);
+  SERIALX.print("Gateway set to: ");
+  SERIALX.println(gateway);
+  #endif
+  ESP.restart();
 }
 //
 // clear credentials and restart
@@ -552,6 +625,10 @@ void ClearCredentials()
 //
 void UpdateLocalTime()
 {
+  if(!wifiConnected)
+  {
+    return;
+  }
   // if not set from NTP, get time and set RTC
   if(!rtcTimeSet)
   {
@@ -584,7 +661,11 @@ void UpdateLocalTime()
     //rtc.setTime(secondNum, minNum, hourNum, dayNum, monthNum, yearNum);
     rtc.setTimeStruct(timeinfo);
     rtcTimeSet = true;
-  }
+  
+    lastMinNum = minNum;
+    lastHourNum = hourNum;
+    lastDayNum = dayNum;
+}
   // use RTC for time
   else
   {
