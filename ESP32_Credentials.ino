@@ -60,7 +60,7 @@
 //#include "SPIFFS.h"             // 
 #include <time.h>               // for NTP time
 #include <ESP32Time.h>          // for RTC time https://github.com/fbiego/ESP32Time
-
+#include <AsyncElegantOTA.h>    // for OTA update of code and/or file system
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
@@ -204,6 +204,19 @@ void setup()
     #endif
     GetCredentials();
   }
+
+  #ifdef VERBOSE
+  SERIALX.println("Start the OTA update server");
+  #endif
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) 
+  {
+    char outStr[256];
+    sprintf(outStr, "Go to %s/update to update firmware and file system\n", WiFi.localIP().toString().c_str());
+    request->send(200, "text/plain", outStr);
+  });
+
+  AsyncElegantOTA.begin(&server);    // Start ElegantOTA
+  server.begin();
 }
 //
 // main loop
