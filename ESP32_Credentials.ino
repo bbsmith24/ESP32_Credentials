@@ -42,6 +42,7 @@
     added local time offset from GMT and daylight savings time offset to credentials page - hours now, could be enhanced with a combo box for timezone
 
 */
+#define HOSTNAME "CREDENTIALS"
 #define VERBOSE            // more output for debugging
 #define FORMAT_LITTLEFS_IF_FAILED true
 // for using alternate serial ports
@@ -405,9 +406,12 @@ bool WiFi_Init()
     #endif
   }
   // set up and connect to wifi
+  WiFi.config(INADDR_NONE,INADDR_NONE,INADDR_NONE,INADDR_NONE);
+  WiFi.setHostname(HOSTNAME);
   WiFi.begin(ssid.c_str(), pass.c_str());
   #ifdef VERBOSE
-  SERIALX.printf("Connecting to WiFi SSID: %s PWD: %s...", ssid.c_str(), pass.c_str());
+  SERIALX.printf("Connecting to WiFi SSID: %s PWD: %s Client name: %s...", ssid.c_str(), pass.c_str(), WiFi.getHostname());
+  
   #endif
   unsigned long currentMillis = millis();
   previousMillis = currentMillis;
