@@ -155,14 +155,19 @@ void setup()
   SERIALX.println("====================");
   delay(1000);
   #endif
-    // set CPU freq to 80MHz, disable bluetooth  to save power
-  #ifdef VERBOSE
+  #ifdef SLOW_CPU
+  // set CPU freq to 80MHz, disable bluetooth  to save power
   int freq = getCpuFrequencyMhz();
+  #ifdef VERBOSE
   SERIALX.printf("Default Freq\n");
   SERIALX.printf("CPU Freq = %dMhz\n", freq);
+  #endif
   freq = getXtalFrequencyMhz();
+  #ifdef VERBOSE
   SERIALX.printf("XTAL Freq = %dMhz\n", freq);
+  #endif
   freq = getApbFrequency();
+  #ifdef VERBOSE
   SERIALX.printf("APB Freq = %dHz\n", freq);
   #endif
   setCpuFrequencyMhz(80);
@@ -178,6 +183,7 @@ void setup()
   btStop();
   #ifdef VERBOSE
   SERIALX.printf("Bluetooth disabled\n");
+  #endif  
   #endif  
 
   sprintf(wifiState, "Not connected");
